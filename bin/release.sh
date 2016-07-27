@@ -1,9 +1,19 @@
 #!/bin/bash
+# -- SSA --
+
+##########################################
 
 DIR="/src/release/"
+
 PROJETOS="${DIR}/projects"
 
+MAVEN_OPS=" --batch-mode"
+
+##########################################
+
+
 PROJETO=${2}
+TMP_FILE="/tmp/release_$$.tmp"
 
 showMsg() {
     echo -e "\033[01;31m${1}\033[0m"
@@ -14,7 +24,13 @@ run() {
     eval ${1}
 
     if [ ${?} -ne 0 ]; then
-       showMsg "Ocorreu um erro!!!" && exit 1
+
+	showMsg "Ocorreu um erro!!!"
+
+	if [ -f ${TMP_FILE} ]; then
+	    cat ${TMP_FILE} && rm ${TMP_FILE}
+	fi 
+	exit 1
     fi 
 }
 
@@ -31,24 +47,29 @@ releaseCmd() {
         exit 1
     fi
 
-    #run "cd ${PROJETOS}/${1}"
-    #run "git checkout master"
-    #run "git pull"
-    #run "mvn versions:use-releases -Dmessage='update from snapshot to release' 
-    #	scm:checkin release:clean release:prepare release:perform"
+    run "cd ${PROJETOS}/${1}"
+    run "git checkout master"
+    run "git pull"
+    run "mvn versions:use-releases -Dmessage='update from snapshot to release' 
+    	scm:checkin release:clean release:prepare release:perform ${MAVEN_OPS}"
 
 }
 
 release() {
   
-    SNAPSHOTS=$(mvn dependency:list -f ${PROJETOS}/${1}/pom.xml | grep -- '-SNAPSHOT' | grep compile$ | cut -d: -f2 | tac)
+    run "mvn dependency:list -f ${PROJETOS}/${1}/pom.xml > ${TMP_FILE}"
 
+    SNAPSHOTS=$(grep -- '-SNAPSHOT' ${TMP_FILE} | grep compile$ | cut -d: -f2 | tac)
+    
     for SNAPSHOT in ${SNAPSHOTS}; do
 	releaseCmd ${SNAPSHOT} ${2}
     done
 
-    releaseCmd ${PROJETO} ${2} 
+    releaseCmd ${PROJETO} ${2}
 }
+
+
+
 
 parametroInvalido() {
   echo "USO: $0 [OPCAO] [PROJETO]
@@ -57,7 +78,7 @@ Opções:
   -r, --release,  faz o release de todas as dependencias que estão como snapshot. 
   -l, --list,     exibe todas as dependencias que estão como snapshot.
 
-release - V0.0.1"
+release - V0.1.0"
   exit 1
 }
 
@@ -70,3 +91,9 @@ case $1 in
    -l|--list) release $2 --list-only ;;
    *) parametroInvalido  ;;
 esac
+
+
+if [ -f ${TMP_FILE} ]; then
+    rm ${TMP_FILE}
+fi
+
